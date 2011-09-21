@@ -16,9 +16,20 @@ task :upgrade => [:environment] do
 end
 
 namespace :self do
+  USERS = ['Alex Bredariol Grilo',
+           'André Lima',
+           'Arthur Azevedo de Amorim',
+           'Helder Ribeiro',
+           'Murilo Pereira',
+           'Ricardo Panaggio',
+           'Vanessa Myho']
   task :create_users => :environment do
-    %w[alex andre arthur helder murilo panaggio vanessa].each do |name|
-      User.create(:email => "#{name}@umamao.com", :password => 'tijolo22')
+    USERS.each do |name|
+      User.create!(:name => name,
+                   :email => "#{name.split.first.downcase}@umamao.com",
+                   :password => 'tijolo22',
+                   :password_confirmation => 'tijolo22',
+                   :agrees_with_terms_of_service => true)
     end
   end
 end
