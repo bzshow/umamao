@@ -27,8 +27,11 @@ namespace :self do
     USERS.each do |name|
       User.create!(:name => name,
                    :email => "#{name.split.first.downcase}@umamao.com",
+                   :login => "#{name.split.first.downcase}@umamao.com",
                    :password => 'tijolo22',
                    :password_confirmation => 'tijolo22',
+                   :role => Time.now,
+                   :confirmed_at => Time.now,
                    :agrees_with_terms_of_service => true)
     end
   end
