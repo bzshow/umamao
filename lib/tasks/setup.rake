@@ -16,7 +16,7 @@ task :upgrade => [:environment] do
 end
 
 namespace :self do
-  task :create_users do
+  task :create_users => :environment do
     %w[alex andre arthur helder murilo panaggio vanessa].each do |name|
       User.create(:email => "#{name}@umamao.com", :password => 'tijolo22')
     end
