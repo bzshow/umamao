@@ -15,6 +15,18 @@ desc "Upgrade"
 task :upgrade => [:environment] do
 end
 
+namespace :self do
+  task :create_users do
+    %w[alex andre arthur helder murilo panaggio vanessa].each do |name|
+      User.create(:email => "#{name}@umamao.com", :password => 'tijolo22')
+    end
+  end
+end
+
+namespace :bootstrap do
+  task :self => [:environment, 'bootstrap', 'self:create_users']
+end
+
 namespace :setup do
   desc "Reset databases"
   task :reset => [:environment] do
