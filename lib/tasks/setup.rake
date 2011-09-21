@@ -30,7 +30,7 @@ namespace :self do
                    :login => "#{name.split.first.downcase}@umamao.com",
                    :password => 'tijolo22',
                    :password_confirmation => 'tijolo22',
-                   :role => Time.now,
+                   :role => 'user',
                    :confirmed_at => Time.now,
                    :agrees_with_terms_of_service => true)
     end
