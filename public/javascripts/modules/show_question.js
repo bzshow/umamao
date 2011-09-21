@@ -46,6 +46,23 @@ $(document).ready(function() {
     };
   });
 
+  Utils.clickObject('form#new_search_result', function() {
+    return {
+      success: function(data) {
+        $('.loader').hide();
+        var search_result = $(data.html);
+        $('#search_results').append(search_result);
+        highlightEffect(search_result);
+      },
+      error: function(data) {
+        $('.loader').hide();
+        if(data.status == 'unauthenticate') {
+          Utils.redirectToSignIn();
+        }
+      }
+    };
+  });
+
   // Send new comment.
   Utils.clickObject("form.commentForm", function () {
     var form = $(this);
@@ -203,5 +220,26 @@ $(document).ready(function() {
   $(".ccontrol-link").live("click", function () {
     $(this).closest(".commentable").find(".comments_wrapper").slideToggle("slow");
     return false;
+  });
+
+  $('ul.tabs li#link').delegate('a', 'click', function(e) {
+    e.preventDefault();
+    $('ul.tabs li#link').addClass('current');
+    $('ul.tabs li#answer').removeClass('current');
+    $('div#answer').hide();
+    $('div#link').show();
+  });
+
+  $('ul.tabs li#answer').delegate('a', 'click', function(e) {
+    e.preventDefault();
+    $('div#answer').removeClass('editor_hack');
+    $('ul.tabs li#answer').addClass('current');
+    $('ul.tabs li#link').removeClass('current');
+    $('div#link').hide();
+    $('div#answer').show();
+  });
+
+  $('form#new_search_result').live('submit', function() {
+    $('.loader').show();
   });
 });
