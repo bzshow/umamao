@@ -348,10 +348,6 @@ class Question
     User.query(:id.in => self.watchers)
   end
 
-  def disable_limits?
-    self.user.present? && self.user.can_post_whithout_limits_on?(self.group)
-  end
-
   def check_useful
     unless disable_limits?
       if !self.title.blank? && self.title.gsub(/[^\x00-\x7F]/, "").size < 5
@@ -369,7 +365,7 @@ class Question
   end
 
   def disallow_spam
-    if new? && !disable_limits?
+    if new?
       last_question = Question.first( :user_id => self.user_id,
                                       :group_id => self.group_id,
                                       :order => "created_at desc")
