@@ -15,11 +15,12 @@ pt-BR:
       search_results: Resultados de busca
       search_result: Resultado de busca
       search_result_count:
-        one: resultado de busca
-        other: resultados de busca
+        one: link
+        other: links
     attributes:
       search_result:
         url: URL
+        comment: Comentário
         summary: Descrição
   search_results:
     create:
@@ -33,4 +34,6 @@ pt-BR:
     label:
       search_result:
         url: URL
-        summary: Descrição
+        comment: Comentário (opcional)
+    placeholder:
+      comment: Por que isso é relevante?
