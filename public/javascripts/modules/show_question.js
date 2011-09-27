@@ -157,7 +157,7 @@ $(document).ready(function() {
     return false;
   });
 
-  $(".flag_form .cancel").live("click", function() {
+  $("#question_flag_form .cancel").live("click", function() {
     $("#question_flag_div").html('');
     return false;
   });
@@ -178,6 +178,11 @@ $(document).ready(function() {
     return false;
   });
 
+  $("#answer_flag_form .cancel").live("click", function() {
+    $("#answer_flag_div").html('');
+    return false;
+  });
+
   $("#question_flag_link.flag-link").click(function() {
     $.ajax({
       url: $(this).attr("href"),
@@ -190,6 +195,28 @@ $(document).ready(function() {
         return false;
       }
     });
+    return false;
+  });
+
+  $('.actions').delegate('#search_result_flag_link', 'click', function() {
+    that = this;
+    $.ajax({
+      url: $(this).attr('href'),
+      dataType: 'json',
+      type: 'GET',
+      success: function(data) {
+        $(that).
+          parents('.controls').
+          find('#search_result_flag_div').
+          html(data.html);
+        return false;
+      }
+    });
+    return false;
+  });
+
+  $("#search_result_flag_form .cancel").live("click", function() {
+    $(this).parents('.controls').find('#search_result_flag_div').html('');
     return false;
   });
 
