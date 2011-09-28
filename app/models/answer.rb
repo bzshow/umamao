@@ -51,7 +51,7 @@ class Answer < Comment
 
   def title(options = {})
     if options[:truncated]
-      truncate_words(body, 80)
+      truncate_words(markdown2txt(body), 100)
     elsif options[:extended]
       I18n.t(:title,
              :scope => [:answers, :show],
@@ -63,7 +63,7 @@ class Answer < Comment
   end
 
   def summary
-    truncate_words(body, 200)
+    truncate_words(markdown2txt(body), 250)
   end
 
   def topic_ids

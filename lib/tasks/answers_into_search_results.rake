@@ -148,5 +148,35 @@ namespace :data do
         end
       end
     end
+
+    task :fix_search_result_titles => :environment do
+      include ApplicationHelper
+      include ActionView::Helpers::TextHelper
+
+      truncator = lambda { |string, size| truncate(markdown2txt(string),
+                                                   :length => size,
+                                                   :omission => ' …',
+                                                   :separator => ' ') }
+
+      title_builder = lambda { |string| truncator.call(string, 100) }
+
+      summary_builder = lambda do |string|
+        truncator.call(markdown2txt(string).
+                       slice((title_builder.call(string).size - 3)..-1).
+                       to_s.
+                       insert(0, '… '), 250)
+      end
+
+      SearchResult.find_each(:batch_size => 100) do |search_result|
+        begin
+          body = Answer.find_by_search_result_id(search_result.id).body
+          search_result.update_attributes!(:title => title_builder.call(body),
+                                           :summary => summary_builder.call(body))
+          STDERR.print '.'
+        rescue StandardError
+          STDERR.print $!
+        end
+      end
+    end
   end
 end

@@ -97,12 +97,7 @@ module ApplicationHelper
       end
     end
 
-    if options[:render_links]
-      txt = render_page_links(txt, options)
-      processed_markdown = RDiscount.new(txt, :strict, :autolink).to_html
-    else
       processed_markdown = RDiscount.new(txt, :strict).to_html
-    end
 
     if options[:process_latex]
       processed_markdown = Nokogiri::HTML(processed_markdown)
@@ -331,6 +326,10 @@ module ApplicationHelper
     "#{uri.scheme}://#{uri.host}#{port.call(uri)}#{relevant_path.call(uri)}"
   rescue URI::InvalidURIError
     truncate(url, :length => 100)
+  end
+
+  def markdown2txt(string)
+    Sanitize.clean(markdown(string)).strip.gsub("\n", ' ').squeeze(' ')
   end
 
   private
