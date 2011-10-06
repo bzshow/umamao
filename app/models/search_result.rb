@@ -40,6 +40,7 @@ class SearchResult
            :foreign_key => 'commentable_id',
            :dependent => :destroy
   has_many :flags, :as => 'flaggeable', :dependent => :destroy
+  has_many :notifications, :as => 'reason', :dependent => :destroy
 
   before_validation :prepend_scheme_on_url,
                     :if => :url_present?,
@@ -49,15 +50,15 @@ class SearchResult
            :if => :url_present?,
            :unless => [:title_present?, :summary_present?]
 
-  after_validation :fetch_title,
+  after_validation :fill_title,
                    :unless => :title_present?,
                    :if => :response_present?
 
-  after_validation :fetch_summary,
+  after_validation :fill_summary,
                    :unless => :summary_present?,
                    :if => :response_present?
 
-  after_create :create_news_update, :notify_watchers
+  after_create :notify_watchers, :unless => :has_answer?
 
   # https://github.com/jnunemaker/mongomapper/issues/207
   before_destroy Proc.new { |sr| sr.answer.destroy if sr.answer }
@@ -70,6 +71,10 @@ class SearchResult
   end
 
 private
+
+  def has_answer?
+    !!answer
+  end
 
   def url_present?
     url.present?
@@ -152,7 +157,7 @@ private
                        end
   end
 
-  def fetch_title
+  def fill_title
     title = truncate(Nokogiri::HTML(response_body).xpath('//title').text,
                      :length => TITLE_SIZE,
                      :omission => ' …',
@@ -161,7 +166,7 @@ private
     self.title = title.present? ? title : url
   end
 
-  def fetch_summary
+  def fill_summary
     summary =
       truncate(Nokogiri::HTML(response_body).
                  xpath("//meta[translate(@name, '#{('A'..'Z').to_a.to_s}', " <<
@@ -183,26 +188,15 @@ private
                    end
   end
 
-  def create_news_update
-    NewsUpdate.create(:author => user,
-                      :entry => self,
-                      :created_at => created_at,
-                      :action => 'created')
-
-    question.news_update.hide!
-  end
-  handle_asynchronously :create_news_update
-
   def notify_watchers
     watcher_ids =
-      question.watchers + question.topics.inject([]) do |watcher_ids, topic|
-                            if topic.is_a?(QuestionList)
-                              watcher_ids
-                            else
-                              watcher_ids << topic.followers.map(&:id)
-                            end
-                          end
-
+       question.topics.inject(Set.new(question.watchers)) do |watcher_ids, topic|
+         if topic.is_a?(QuestionList)
+           watcher_ids.merge(topic.followers.map(&:id))
+         else
+           watcher_ids
+         end
+       end
     watcher_ids.each do |watcher_id|
       if (watcher = User.find_by_id(watcher_id)) != user &&
            watcher.notification_opts.new_search_result
