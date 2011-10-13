@@ -16,12 +16,31 @@ class ApplicationController < ActionController::Base
   before_filter :check_agreement_to_tos
   before_filter :ensure_domain
   before_filter :track_user
+  before_filter :sign_in_or_create_session
   layout :set_layout
 
   DEVELOPMENT_DOMAIN = 'localhost.lan'
   TEST_DOMAIN = '127.0.0.1'
 
   protected
+
+  def sign_in_or_create_session
+    unless current_user
+      if user = User.find_by_login(cookies[:session_id])
+        sign_in(user)
+      else
+        cookies[:session_id] = session[:session_id] = SecureRandom.hex(32)
+        sign_in(User.create!(:name => Faker::Name.name,
+                             :login => session[:session_id],
+                             :password => password = SecureRandom.hex(10),
+                             :password_confirmation => password,
+                             :agrees_with_terms_of_service => true,
+                             :confirmed_at => Time.now,
+                             :email => "nao.responda+#{session[:session_id]}@umamao.com",
+                             :role => 'user'))
+      end
+    end
+  end
 
   def ensure_domain
     return unless AppConfig.ensure_domain
