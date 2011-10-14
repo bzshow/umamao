@@ -1,20 +1,12 @@
-require 'uri'
-
 class SearchResult
-  REDIRECTION_LIMIT = 5
-  ACCEPTED_SCHEMES  = %w[http https]
-  TIMEOUT           = 10
   TITLE_SIZE        = 100
   SUMMARY_SIZE      = 250
-
-  class TooManyRedirectionsError < StandardError; end
 
   include MongoMapper::Document
   include Support::Voteable
   include ApplicationHelper
-  include ActiveSupport::Inflector
   include ActionView::Helpers::TextHelper
-  include ActiveSupport::Multibyte
+  include Support::Xpath
 
   key :_id, String
   key :_type, String
@@ -42,21 +34,17 @@ class SearchResult
   has_many :flags, :as => 'flaggeable', :dependent => :destroy
   has_many :notifications, :as => 'reason', :dependent => :destroy
 
-  before_validation :prepend_scheme_on_url,
-                    :if => :url_present?,
-                    :unless => :url_has_scheme?
-
-  validate :fetch_response,
+  validate :fetch_response_body,
            :if => :url_present?,
            :unless => [:title_present?, :summary_present?]
 
   after_validation :fill_title,
                    :unless => :title_present?,
-                   :if => :response_present?
+                   :if => [:response_body_present?, :response_body_text?]
 
   after_validation :fill_summary,
                    :unless => :summary_present?,
-                   :if => :response_present?
+                   :if => [:response_body_present?, :response_body_text?]
 
   after_create :notify_watchers, :unless => :has_answer?
 
@@ -88,73 +76,20 @@ private
     summary.present?
   end
 
-  def response_present?
-    @response.present?
+  def response_body_present?
+    @response.body.present?
   end
 
-  def url_has_scheme?
-    (parsed_url = URI.parse(url)) &&
-      ACCEPTED_SCHEMES.include?(parsed_url.scheme)
-  rescue URI::InvalidURIError
-    false
-  end
-
-  def prepend_scheme_on_url
-    scheme = lambda { |scheme| ACCEPTED_SCHEMES.include?(scheme) ? scheme :
-                                                                   'http' }
-    uri = URI.parse(url)
-    self.url = "#{scheme.call(uri.scheme)}://#{uri.to_s}"
-  rescue URI::InvalidURIError
-  end
-
-  def fetch_response
-    request_uri = lambda do |uri|
-      if uri.respond_to?(:request_uri)
-        uri.request_uri
-      else
-        uri.query ? uri.path + '?' + uri.query : uri.path
-      end
-    end
-    host = lambda { |uri| uri.host || URI.parse(url).host }
-    fetch = lambda do |uri, redirections_left|
-      raise TooManyRedirectionsError if redirections_left == 0
-      parsed_uri = URI.parse(uri)
-      request = Net::HTTP::Get.new(request_uri.call(parsed_uri))
-      http = Net::HTTP.new(host.call(parsed_uri), parsed_uri.port)
-      http.open_timeout = http.read_timeout = TIMEOUT
-      if parsed_uri.port == 443
-        http.use_ssl = true
-        # http://jamesgolick.com/2011/2/15/verify-none..html
-        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-      end
-      case response = http.request(request)
-      when Net::HTTPSuccess then response
-      when Net::HTTPRedirection then fetch.call(response['location'],
-                                                redirections_left - 1)
-      else response.error!
-      end
-    end
-    @response = fetch.call(url, REDIRECTION_LIMIT)
-  rescue Errno::ECONNREFUSED,
-         Errno::ECONNRESET,
-         Errno::ETIMEDOUT,
-         Net::HTTPServerException,
-         Net::HTTPBadResponse,
-         Net::HTTPFatalError,
-         SocketError,
-         Timeout::Error,
-         TooManyRedirectionsError
-    errors.add_to_base(I18n.t(underscore($!.class.to_s.delete(':')).to_sym,
-                              :scope =>
-                                [:activerecord, :errors, :search_result]))
+  def response_body_text?
+    @response.content_type.split('/').first == 'text'
   end
 
   def response_body
-    @response_body ||= begin
-                         Unicode.tidy_bytes(@response.body)
-                       rescue StandardError
-                         Unicode.tidy_bytes(@response.body, true)
-                       end
+    @response.body
+  end
+
+  def fetch_response_body
+    @response = Support::ResponseFetcher.new(url, :fetcher => self).fetch
   end
 
   def fill_title
@@ -169,8 +104,10 @@ private
   def fill_summary
     summary =
       truncate(Nokogiri::HTML(response_body).
-                 xpath("//meta[translate(@name, '#{('A'..'Z').to_a.to_s}', " <<
-                         "'#{('a'..'z').to_a.to_s}')='description']/@content").
+                 xpath("//meta[" <<
+                         case_insensitive_xpath(:attribute => :name,
+                                                :value => :description) <<
+                         "]/@content").
                  text,
                :length => SUMMARY_SIZE,
                :omission => ' …',
@@ -181,7 +118,7 @@ private
                    else
                      html = Nokogiri::HTML(response_body)
                      html.xpath('//script').remove
-                     truncate(html.xpath('//body').text,
+                     truncate(html.xpath('//p').text,
                               :length => SUMMARY_SIZE,
                               :omission => ' …',
                               :separator => ' ')
