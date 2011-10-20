@@ -1226,5 +1226,32 @@ namespace :data do
       end
     end
 
+    desc "Update UserTopicInfo counts"
+    task :update_question_is_open_flag => :environment do
+      Question.find_each do |q|
+        print "-"
+        if q.is_open && SearchResult.first(:question_id => q.id,
+                              :votes_average => { :$gt => 0 })
+          q.is_open = false
+          q.save
+        end
+      end
+    end
+
+    task :create_url_invitations => :environment do
+      error_message = StringIO.new
+      User.find_each(:batch_size => 100) do |user|
+        if UrlInvitation.generate(user)
+          STDERR.print '.'
+        else
+          error_message.puts "[error] Failed to create url invitation " <<
+                               "for user with id = #{user.id}"
+          STDERR.print 'F'
+        end
+      end
+      if error_message.string.present?
+        STDERR.puts "\nErrors:\n\n#{error_message.string}"
+      end
+    end
   end
 end
