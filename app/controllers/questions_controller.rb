@@ -175,6 +175,10 @@ class QuestionsController < ApplicationController
     }
     @follow_up_questions = Question.children_of(@question)
 
+    if ab_test(:question_responding_helpers) == :bing_results
+      @bing_results = Support::Bing.search(@question.title)
+    end
+
     respond_to do |format|
       format.html
       format.json  { render :json => @question.to_json(:except => %w[_keywords slug watchers]) }
@@ -229,6 +233,7 @@ class QuestionsController < ApplicationController
 
         track_event(:asked_question, :body_present => @question.body.present?,
                     :topics_count => @question.topics.size)
+        track!(:question_posted)
 
         format.html do
           flash[:notice] = t(:flash_notice, :scope => "questions.create")

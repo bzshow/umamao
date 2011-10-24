@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Methods added to this helper will be available to all templates in the application.
 
+require 'cgi'
 require 'uri'
 
 module ApplicationHelper
@@ -323,7 +324,7 @@ module ApplicationHelper
     relevant_path = lambda do |uri|
       request_uri =
         uri.to_s[((uri.scheme.to_s + uri.host.to_s).to_s.length + 3)..-1].to_s
-      head = truncate(request_uri[0..(request_uri.length / 2)], :length => 30)
+      head = truncate(request_uri[0..(request_uri.length / 2.0).ceil - 1], :length => 30)
       tail = truncate(request_uri.reverse[0..(request_uri.length / 2) - 1],
                       :length => 30).reverse
       (head + tail).sub('......', '...').squeeze('/')
@@ -351,6 +352,12 @@ module ApplicationHelper
     if object_super = object_class.superclass
       find_link_to_method(object_super)
     end
+  end
+
+  def link_to_google_search(string, options = { :id => :google_search_link })
+    link_to(string,
+            'http://www.google.com.br/search?q=' << CGI.escape(string),
+            options)
   end
 end
 
