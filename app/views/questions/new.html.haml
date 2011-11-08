@@ -9,16 +9,10 @@
 - content_for :subtabs do
   .navtitle
     = t(".title")
-- content_for :sidebar do
-  - if !current_group.question_help.empty?
-    .help
-      %h4
-        = t(".how_to_ask")
-      = current_group.question_help
 
 - form_for(@question, :html => {:class => "form editor",
                                 :id => "ask_question"}) do |f|
-  = render :partial => "form", :locals => {:f => f, :topics => true}
+  = render :partial => "form", :locals => {:f => f, :description => true, :details => true, :topics => true}
 
   .group.navform
 
