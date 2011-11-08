@@ -189,7 +189,7 @@ class QuestionsController < ApplicationController
   # GET /questions/new
   # GET /questions/new.xml
   def new
-    if ab_test(:new_question_as_search) == :new_search_scheme
+    if true
       if params[:question] && params[:question][:title].present?
         redirect_to search_path(:q => params[:question][:title])
       else
