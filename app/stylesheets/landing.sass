@@ -84,7 +84,7 @@ hr#colruler
 #content
   +column(14)
   margin-bottom: 20px
-  padding-top: 20px
+  padding-top: 40px
   font-size: 1.2em
   a
     color: #0077CC
@@ -110,6 +110,11 @@ hr#colruler
   width: 350px
 
 #signup
+  #title
+    h3
+      top-bottom: 1em
+      margin-bottom: 0em
+
   $signup-columns: 9
   // true means it's the last column in the row
   +column($signup-columns, true)
@@ -118,32 +123,30 @@ hr#colruler
   padding: 10px
   margin-bottom: 20px
   margin-left: 20px
+  margin-top: 30px
 
   form
-    +blueprint-form-sizes(258px)
-  .label
-    text-align: left
-    line-height: 1
-    height: 39px
-    label
-      height: 39px
-    label[for=user_email]
-      vertical-align: -100%
-    label[for=user_password]
-      vertical-align: -100%
-    label[for=user_password_confirmation]
-      vertical-align: -100%
-    label[for=user_name]
-      padding: 6px 0px 0px
-    img
-      margin-bottom: -2px
-      margin-right: 2px
+    +blueprint-form-sizes(210px)
 
   .field
-    margin-left: 60px
+    text-align: right
+  .label
+    width: 60px
+    text-align: left
+    display: inline
+  .input
+    display: inline
+
+  .field.agree .field_with_errors
+    // Quick and dirty way of avoiding the text to go to the next line
+    display: inline
+
+  #invitation_only
+    margin-top: 40px
   #mamao_signup
-    margin-left: 58px
-    margin-top: 20px
+    align: center
+    margin-left: 270px
+    margin-top: 10px
     float: left
   .submit
     float: right
@@ -228,6 +231,8 @@ ul#team
     display: inline
 
 #signup-wizard
+  #content
+    padding-top: 0px
   width: 550px
   margin: 0 auto
   padding: 20px

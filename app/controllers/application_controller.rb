@@ -6,6 +6,9 @@ class ApplicationController < ActionController::Base
   include AuthenticatedSystem
   include Subdomains
 
+  DEVELOPMENT_DOMAIN = 'localhost.lan'
+  TEST_DOMAIN = '127.0.0.1'
+
   protect_from_forgery
 
   after_filter :flash_to_session
@@ -15,10 +18,36 @@ class ApplicationController < ActionController::Base
   before_filter :find_languages
   before_filter :check_agreement_to_tos
   before_filter :ensure_domain
+  before_filter :track_user
   layout :set_layout
 
-  DEVELOPMENT_DOMAIN = 'localhost.lan'
-  TEST_DOMAIN = '127.0.0.1'
+  # This is a turnaround for the shortcomings of the vanity gem. This code will
+  # create at most one participant and one conversion in a random group for all
+  # our untracked users. This is necessary because `use_vanity` is a class-level
+  # macro, and can't be conditionally evaluated per-request.
+  use_vanity :_vanity_identity
+
+  def _vanity_identity
+    if current_user
+      if current_user.tracked?
+        current_user
+      else
+        set_vanity_cookie(Umamao::UntrackedUser.instance.id)
+        Umamao::UntrackedUser.instance
+      end
+    end
+  end
+
+  # This identifier recognizes untracked users' identities via cookies even if
+  # they're not logged in. It's used in our vanity experiment files.
+  def identify_vanity
+    if identity = _vanity_identity
+      identity.id
+    else
+      set_vanity_cookie(SecureRandom.hex(16)) unless cookies[:vanity_id]
+      cookies[:vanity_id]
+    end
+  end
 
   protected
 
@@ -64,8 +93,27 @@ class ApplicationController < ActionController::Base
 
   def track_event(event, properties = {})
     user_id = current_user ? current_user.id : properties.delete(:user_id)
-    Tracking::EventTracker.delay.track_event([event, user_id, request.ip,
-                properties])
+    if (user = User.find_by_id(user_id)) &&
+      !AppConfig.untrackable_user_emails.include?(user.email)
+      Tracking::EventTracker.delay.track_event([event,
+                                                user_id,
+                                                request.ip,
+                                                properties])
+      Tracking::EventTracker.delay.track_event([:any_action,
+                                                user_id,
+                                                request.ip,
+                                                properties])
+    end
+  end
+
+  def track_bingo(event)
+    with_trackable_users { track!(event) }
+  end
+
+  def with_trackable_users
+    unless current_user && !current_user.tracked?
+      yield
+    end
   end
 
   def after_sign_in_path_for(resource)
@@ -127,6 +175,23 @@ class ApplicationController < ActionController::Base
       end
       _current_group
     }
+  end
+
+  def track_user
+    if current_user
+      key = "last_day_used_at_#{current_user.id}"
+      handle_event_tracking = lambda do |event|
+        Rails.cache.write(key, Date.today.to_s)
+        track_event(:used_today)
+      end
+      if last_day_used_at = Rails.cache.read(key)
+        if last_day_used_at != Date.today.to_s
+          handle_event_tracking.call(:used_today)
+        end
+      else
+        handle_event_tracking.call(:used_today)
+      end
+    end
   end
 
   def current_group
@@ -228,27 +293,9 @@ class ApplicationController < ActionController::Base
   end
 
   def page_title
-    if @page_title
-      if current_group.name == AppConfig.application_name
-        "#{@page_title} - #{AppConfig.application_name}: #{t("layouts.application.title")}"
-      else
-        if current_group.isolate
-          "#{@page_title} - #{current_group.name} #{current_group.legend}"
-        else
-          "#{@page_title} - #{current_group.name} - #{AppConfig.application_name} -  #{current_group.legend}"
-        end
-      end
-    else
-      if current_group.name == AppConfig.application_name
-        "#{AppConfig.application_name} - #{t("layouts.application.title")}"
-      else
-        if current_group.isolate
-          "#{current_group.name} - #{current_group.legend}"
-        else
-          "#{current_group.name} - #{current_group.legend} - #{AppConfig.application_name}"
-        end
-      end
-    end
+    title = "#{AppConfig.application_name} - " <<
+              "#{t(:title, :scope => [:layouts, :application])}"
+    @page_title ? title.insert(0, "#{@page_title} - ") : title
   end
   helper_method :page_title
 
@@ -289,5 +336,13 @@ class ApplicationController < ActionController::Base
 
   def build_datetime(params, name)
     Time.zone.parse("#{params["#{name}(1i)"]}-#{params["#{name}(2i)"]}-#{params["#{name}(3i)"]} #{params["#{name}(4i)"]}:#{params["#{name}(5i)"]}") rescue nil
+  end
+
+  private
+
+  def set_vanity_cookie(value)
+    unless cookies[:vanity_id] == value
+      cookies[:vanity_id] = { :value => value, :expires => Time.now + 10.years }
+    end
   end
 end

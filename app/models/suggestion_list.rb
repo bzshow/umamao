@@ -148,60 +148,6 @@ class SuggestionList
                  :reason => "popular")
   end
 
-  def suggest_users_from_dac(student_class)
-    self.suggest(Affiliation.query(
-      :student_id.in => student_class.students.map(&:id),
-      :user_id.ne => nil).map(&:user),
-      :reason => "dac")
-
-    previous_year = AcademicProgramClass.first(
-              :academic_program_id => student_class.academic_program_id,
-              :year => student_class.year - 1)
-    if previous_year
-      self.suggest(Affiliation.query(
-        :student_id.in => previous_year.students.map(&:id),
-        :user_id.ne => nil).map(&:user),
-        :reason => "dac")
-    end
-
-    next_year = AcademicProgramClass.first(
-              :academic_program_id => student_class.academic_program_id,
-              :year => student_class.year + 1)
-    if next_year
-      self.suggest(Affiliation.query(
-        :student_id.in => next_year.students.map(&:id),
-        :user_id.ne => nil).map(&:user),
-        :reason => "dac")
-    end
-  end
-
-
-  def suggest_from_dac
-    if affiliation = Affiliation.first(:user_id => self.user.id.to_s, :email => /@dac.unicamp.br$/) and student = affiliation.student
-      suggestions = []
-
-      # Suggest topics
-      if student.academic_program_class
-        suggestions << student.academic_program_class.academic_program
-      end
-
-      self.suggest(suggestions +
-                   student.registered_courses.map(&:course),
-                   :reason => "dac")
-
-      # Suggest users
-      suggest_users_from_dac(student.academic_program_class) if student.academic_program_class
-    end
-  end
-
-  # Suggest topics related to the user's affiliations.
-  def suggest_university_topics
-    if self.user.affiliations.present?
-      self.user.affiliations.each do |affiliation|
-        self.suggest(affiliation.university.university_topics, "university")
-      end
-    end
-  end
 
   # Suggest topics related to the user's group invitation.
   def suggest_from_group_invitation
@@ -209,18 +155,22 @@ class SuggestionList
       self.suggest(group_invitation.topics, "group_invitation")
     end
   end
+  
+  # Suggest topics listed in shapado.yml
+  def suggest_first_topics
+    topics = configured_suggestions
+    return if topics.blank?
+    topics.each do |t|
+      self.suggest(t, "popular") if t.present?
+    end
+  end
 
   # Populate the user's suggestion list for the signup wizard.
   def find_first_suggestions
     if self.topic_suggestions.blank? &&
         self.user_suggestions.blank?
-      self.suggest_from_group_invitation
-      self.suggest_university_topics
+      self.suggest_first_topics
       self.suggest_users_from_outside
-      self.suggest_from_dac
-      if self.topic_suggestion_ids.size < 20
-        self.suggest_popular_topics(20 - self.topic_suggestion_ids.size)
-      end
     end
   end
 
@@ -237,7 +187,7 @@ class SuggestionList
     kept_suggestions = []
 
     self.topic_suggestions.each do |topic_suggestion|
-      if ["external", "university", "dac"].include?(topic_suggestion.reason) &&
+      if ["external"].include?(topic_suggestion.reason) &&
           topic_suggestion.entry.present?
         kept_suggestions << topic_suggestion
       else
@@ -246,15 +196,12 @@ class SuggestionList
     end
 
     count = Hash.new(0) # Scores for suggestions
-    UserTopicInfo.find_each(:user_id => user.id, 
-                            :followed_at.ne => nil) do |user_topic|
-      topic = user_topic.topic
-      topic.related_topics.each do |related_topic|
-        next if self.user.following?(related_topic) ||
-          self.uninteresting_topic_ids.include?(related_topic.id) ||
-          kept_suggestions.any?{|suggestion| suggestion.entry == related_topic}
-        count[related_topic.id] += 1
-      end
+    topics = configured_suggestions
+    topics.each do |topic|
+      next if self.user.following?(topic) ||
+        self.uninteresting_topic_ids.include?(topic.id) ||
+        kept_suggestions.any?{|suggestion| suggestion.entry == topic}
+      count[topic.id] += 1
     end
 
     self.topic_suggestions = kept_suggestions
@@ -267,4 +214,13 @@ class SuggestionList
     end
   end
 
+protected
+  def configured_suggestions
+    ids = AppConfig.topic_suggestion
+    if ids.blank?
+      []
+    else
+      ids.map{ |id| Topic.find_by_slug_or_id(id) }.select{ |t| t.present?}
+    end
+  end
 end

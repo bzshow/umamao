@@ -103,8 +103,11 @@ class User
 
   key :last_read_notifications_at, Time
 
+  has_one :url_invitation, :foreign_key => :inviter_id, :dependent => :destroy
+
   before_create :create_friend_list, :create_notification_opts
   before_create :generate_uuid
+  after_create Proc.new { |user| UrlInvitation.generate(user) }
 
   timestamps!
 
@@ -146,6 +149,12 @@ class User
 
   scope :confirmed, where(:confirmed_at.ne => nil)
   scope :unconfirmed, where(:confirmed_at => nil)
+
+  def upvotes_count
+    # FIXME: this can be way better, if upvotes are kept on its on counter
+    #        or maybe if upvotes_count is denormalized
+    self.search_results.map{ |sr| sr.votes.count(:value => 1) }.reduce(0, &:+)
+  end
 
   def description=(description)
     super(description.try(:strip))
@@ -209,7 +218,7 @@ class User
   # are allowed in, if not, they have to do something (like confirm
   # email) before being allowed to log in.
   def active?
-    !self.new? && (self.confirmed_affiliation? || super)
+    true
   end
 
   def confirmed_affiliation?
@@ -1001,6 +1010,12 @@ Time.zone.now ? 1 : 0)
       wu.user = self
       wu.save!
     end
+  end
+
+  def tracked?
+    untracked_emails = AppConfig.untrackable_user_emails
+    untracked_emails.respond_to?(:include?) ? !untracked_emails.include?(email) :
+                                              true
   end
 
   protected

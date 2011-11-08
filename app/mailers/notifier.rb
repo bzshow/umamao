@@ -4,27 +4,6 @@ class Notifier < ActionMailer::Base
 
   helper :application
 
-  def give_advice(user, group, question, following = false)
-    @user = user
-    @group = group
-    @question = question
-    @following = following
-
-    @domain = group.domain
-
-    scope = "mailers.notifications.give_advice"
-
-    if following
-      subject = I18n.t("friend_subject", :scope => scope,
-                     :question_title => question.title)
-    else
-      subject = I18n.t("subject", :scope => scope,
-                     :question_title => question.title)
-    end
-
-    mail(:to => user.email, :subject => subject)
-  end
-
   def new_question(user, group, question, topic)
     @user = user
     @group = group
@@ -73,18 +52,40 @@ class Notifier < ActionMailer::Base
     mail(:to => user.email, :subject => subject)
   end
 
-  def new_comment(user, group, comment, question)
+  def new_search_result(user, group, search_result)
     @user = user
     @group = group
-    @comment = comment
-    @question = question
+    @search_result = search_result
+    @following = true
 
     @domain = group.domain
+    @question = @search_result.question
 
-    subject = I18n.t("mailers.notifications.new_comment.subject",
-                     :name => comment.user.name, :group => group.name)
+    subject = if user == search_result.question.user
+                I18n.t('subject_owner',
+                       :scope => [:mailers, :notifications, :new_search_result],
+                       :title => search_result.question.title,
+                       :name => search_result.user.name)
+              else
+                I18n.t('subject_other',
+                       :scope => [:mailers, :notifications, :new_search_result],
+                       :title => search_result.question.title,
+                       :name => search_result.user.name)
+              end
 
     mail(:to => user.email, :subject => subject)
+  end
+
+  def new_comment(comment, params)
+    @comment = comment
+    @user = params[:recipient]
+    @question = comment.find_question
+    @group = @question.group
+
+    mail(:to => @user.email,
+         :subject => t(:subject,
+                       :scope => [:mailers, :notifications, :new_comment],
+                       :question => @question.title))
   end
 
   def new_feedback(user, title, content, email, ip)
@@ -157,21 +158,16 @@ class Notifier < ActionMailer::Base
     mail(:to => affiliation.email, :subject => t("mailers.notifications.signup.subject"))
   end
 
-  def closed_for_signup(affiliation)
-    @university = affiliation.university
-    @email = affiliation.email
-    mail(:to => affiliation.email, :subject => t("mailers.notifications.closed_for_signup.subject"))
-  end
-
   def wait(waiting_user)
     @open_universities = University.open_for_signup
     @email = waiting_user.email
     mail(:to => waiting_user.email, :subject => t("mailers.notifications.closed_for_signup.subject"))
   end
 
-  def non_academic(waiting_user)
-    @open_universities = University.open_for_signup
-    @email = waiting_user.email
-    mail(:to => waiting_user.email, :subject => t("mailers.notifications.closed_for_signup.subject"))
+  def survey(user)
+    @user = user
+    SentSurveyMail.create(:user_id => user.id)
+    mail(:to => user.email,
+         :subject => t(:subject, :scope => [:notifier, :survey]))
   end
 end

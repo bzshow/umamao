@@ -1,6 +1,14 @@
 require 'uri'
 require 'cgi'
 
+def answer_url(params)
+  URI::HTTP.build(:host => AppConfig.domain,
+                  :port => AppConfig.port == 80 ? nil: AppConfig.port,
+                  :path => "/questions/" <<
+                             "#{CGI.escape(params[:question_slug])}" <<
+                             "/answers/#{params[:answer_id]}").to_s
+end
+
 namespace :data do
   namespace :migrate do
     desc 'Creates SearchResult objects from Answer objects'
@@ -10,14 +18,6 @@ namespace :data do
       include ApplicationHelper
 
       GROUP = Group.first
-
-      answer_url = lambda do |params|
-        URI::HTTP.build(:host => AppConfig.domain,
-                        :port => AppConfig.port == 80 ? nil: AppConfig.port,
-                        :path => "/questions/" <<
-                                   "#{CGI.escape(params[:question_slug])}" <<
-                                   "/answers/#{params[:answer_id]}")
-      end
 
       optional = lambda do |object, message|
         object.respond_to?(message) ? object.send(message) : nil
@@ -32,17 +32,14 @@ namespace :data do
         begin
           question = Question.where(:id => answer.question_id).fields(:slug).first
           search_result =
-            SearchResult.create!(:url => answer_url.
-                                           call(:question_slug => question.slug,
-                                                :answer_id => answer.id),
+            SearchResult.create!(:url => answer_url(:question_slug =>
+                                                      question.slug,
+                                                    :answer_id => answer.id),
                                  :title => answer.title(:truncated => true),
                                  :summary => truncate_words(answer.body),
                                  :user_id => answer.user_id,
                                  :group_id => GROUP.id,
                                  :question_id => answer.question_id)
-
-          answer.search_result = search_result
-          answer.save
 
           Vote.
             where(:voteable_id => answer.id, :voteable_type => 'Answer').
@@ -126,27 +123,57 @@ namespace :data do
     task :associate_answers_with_search_results => :environment do
       raise 'You must have created a Group' unless Group.exists?
 
+      error_message = StringIO.new
+
       Answer.find_each(:batch_size => 100) do |answer|
-        search_results = SearchResult.where(:question_id => answer.question_id, :user_id => answer.user_id).all
+        search_results = SearchResult.where(:question_id => answer.question_id,
+                                            :user_id => answer.user_id).all
+        url = answer_url(:question_slug => answer.question.slug,
+                         :answer_id => answer.id)
 
-        search_result =
-          case count = search_results.count
-          when 1
-            search_results.first
-          else
-            search_results.find do |sr|
-              sr.url == Rails.application.routes.url_helpers.question_answer_url(answer.question, answer.id)
-            end
-          end
-
-        if search_results
-          answer.search_result = search_result
+        if search_result = search_results.find { |sr| sr.url == url }
           begin
-            answer.save!
+            answer.update_attributes!(:search_result_id => search_result.id)
+            STDERR.print '.'
           rescue StandardError
-            STDERR.puts $!
+            error_message.puts "[error] <Answer##{answer.id}><SearchResult#" <<
+                                 "#{search_result.id}> - #{$!.class}: #{$!}"
+            STDERR.print 'F'
           end
+        else
+          STDERR.print 'N'
+          error_message.puts "[error] Couldn't find SearchResult with url " <<
+            "= #{url} on <Answer##{answer.id}>"
         end
+      end
+
+      if error_message.string.present?
+        STDERR.puts "\nErrors:\n\n#{error_message.string}"
+      end
+    end
+
+    task :update_search_results_titles_and_summaries => :environment do
+      error_message = StringIO.new
+      SearchResult.find_each(:batch_size => 100) do |search_result|
+        begin
+          if answer = Answer.find_by_search_result_id(search_result.id)
+            search_result.
+              update_attributes!(:title => answer.title(:truncated => true),
+                                 :summary => answer.summary)
+            STDERR.print '.'
+          else
+            error_message.puts "[notice] No Answer with search_result_id = " <<
+                                 "#{search_result.id} (external link?)"
+            STDERR.print 'N'
+          end
+        rescue StandardError
+          error_message.puts "[error] <Answer##{answer.id}><SearchResult#" <<
+                               "#{search_result.id}> - #{$!.class}: #{$!}"
+          STDERR.print 'F'
+        end
+      end
+      if error_message.string.present?
+        STDERR.puts "\nErrors:\n\n#{error_message.string}"
       end
     end
   end

@@ -19,22 +19,22 @@ class WelcomeController < ApplicationController
     session[:user_return_to] = params[:return_to]
 
     @affiliation = Affiliation.new
-
-    @signin_index, @signup_index =
-      if params[:focus] == "signup"
-        [3, 1]
-      else
-        [1, 5]
-      end
-
+    @signin_index, @signup_index = [1, 5]
     render 'landing', :layout => 'welcome'
   end
 
   def home
-    @news_items = filter_news_items
+    ni_sr = ab_test(:news_items_search_results_helpers)
+    if ni_sr == :answer
+      options = {:news_update_entry_type => {:$ne => "SearchResult"}}
+    else
+      options = {:news_update_entry_type => {:$ne => "Answer"}}
+    end
+
+    @news_items = filter_news_items(options)
 
     @questions = Question.latest.limit(10) || [] if @news_items.empty?
-    @getting_started = Question.find_by_slug_or_id("4d404ee779de4f25ff000507")
+    @getting_started = Answer.find_by_id("4d42bebf79de4f262d000e4b")
 
     set_tab :all, :welcome_home
     render 'home'

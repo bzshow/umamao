@@ -7,6 +7,7 @@ class Comment
   key :body, String, :required => true
   key :language, String, :default => 'pt-BR'
   key :banned, Boolean, :default => false
+  attr_accessor :created_together_with_search_result
 
   timestamps!
 
@@ -27,7 +28,8 @@ class Comment
   validate :disallow_spam
 
   before_save :adjust_newlines
-  after_create :new_comment_notification
+  after_create :new_comment_notification,
+               :unless => :created_together_with_search_result
 
   def ban
     self.collection.update({:_id => self.id}, {:$set => {:banned => true}},
@@ -111,11 +113,10 @@ class Comment
   end
 
   def new_comment_notification
-    if (question = self.find_question)
-      self.users_to_notify.each do |recipient|
-        email = recipient.email
-        if email.present? && recipient.notification_opts.new_answer
-          Notifier.delay.new_comment(recipient, question.group, self, question)
+    if find_question
+      users_to_notify.each do |recipient|
+        if recipient.email.present? && recipient.notification_opts.new_answer
+          Notifier.delay.new_comment(self, :recipient => recipient)
         end
         Notification.create!(:user => recipient,
                              :event_type => "new_comment",

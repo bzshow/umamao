@@ -7,7 +7,9 @@
   = markdown(@message, :group => @group)
   \---
 
-= link_to t(".answer"), question_url(@question)
-%br
-%br
+%p
+  = t(".html_link_label")
+%p
+  = link_to question_url(@question), question_url(@question)
+
 = simple_format(t('.goodbye'))

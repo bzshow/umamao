@@ -994,9 +994,9 @@ namespace :data do
 
     desc "Rebuild filter indexes for questions, users and topics"
     task :rebuild_indexes => :environment do
-      Question.all.each {|q| q.save :validate => false}
-      Topic.all.each {|q| q.save :validate => false}
-      User.all.each {|q| q.save :validate => false}
+      User.find_each {|q| print '-';  q.update_search_index(true)}
+      Question.find_each{|q| print '-'; q.update_search_index(true)}
+      Topic.find_each{|q| print '-';  q.update_search_index(true)}
     end
 
     desc "Migrate news items to polymorphic version"
@@ -1223,6 +1223,89 @@ namespace :data do
           print "-"
           uti.update_counts
         end
+      end
+    end
+
+    desc "Prune topics that don't have any questions or followers"
+    task :prune_topics => :environment do
+      prune_topic = lambda do |t|
+        if t.questions.count.zero? && t.follower_ids.count.zero?
+          print( t.delete ? '.' : 'E' )
+        else
+          print 'F'
+        end
+      end
+
+      # Prune topics that have zero counts
+      Topic.find_each(:questions_count => 0,
+                      :followers_count => 0,
+                      &prune_topic)
+    end
+
+    desc "Remove all related topics from all topics"
+    task :drop_related_topics => :environment do
+      Topic.find_each(:batch => 100) do |t|
+        error_ids = t.set(:related_topic_ids, [])
+        error_count = t.set(:related_topics_count, {})
+
+        print(error_ids.is_a?(Hash) || error_count.is_a?(Hash) ? 'E' : '.')
+      end
+    end
+
+    desc "Regenerate related topics for all topics"
+    task :regenerate_related_topics => :environment do
+      Topic.find_each(:batch => 100) do |t|
+        if t.update_related_topics!
+          print '.'
+        else
+          print 'F'
+        end
+      end
+    end
+
+    desc "Update question is_open flag"
+    task :update_question_is_open_flag => :environment do
+      Question.find_each do |q|
+        print "-"
+        if q.is_open && SearchResult.first(:question_id => q.id,
+                              :votes_average => { :$gt => 0 })
+          q.is_open = false
+          q.save
+        end
+      end
+    end
+
+    task :create_url_invitations => :environment do
+      error_message = StringIO.new
+      User.find_each(:batch_size => 100) do |user|
+        if UrlInvitation.generate(user)
+          STDERR.print '.'
+        else
+          error_message.puts "[error] Failed to create url invitation " <<
+                               "for user with id = #{user.id}"
+          STDERR.print 'F'
+        end
+      end
+      if error_message.string.present?
+        STDERR.puts "\nErrors:\n\n#{error_message.string}"
+      end
+    end
+
+    desc "Create news items for search results"
+    task :create_news_items_search_results => :environment do
+      SearchResult.find_each do |sr|
+        print '-'
+        if sr.news_update.nil?
+          sr.create_news_update
+        end
+      end
+    end
+
+    desc "Update NewsItems' news_update_entry_type"
+    task :update_news_items_news_update_entry_type => :environment do
+      NewsItem.find_each(:news_update_entry_type => nil) do |ni|
+        print '-'
+        ni.set(:news_update_entry_item => ni.news_update.entry_type)
       end
     end
 

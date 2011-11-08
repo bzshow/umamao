@@ -3,6 +3,7 @@ class Answer < Comment
   include MongoMapperExt::Filter
   include Support::Versionable
   include ApplicationHelper
+  include ActionView::Helpers::TextHelper
 
   key :_id, String
 
@@ -51,7 +52,10 @@ class Answer < Comment
 
   def title(options = {})
     if options[:truncated]
-      truncate_words(body, 80)
+      truncate(markdown2txt(body),
+               :length => SearchResult::TITLE_SIZE,
+               :omission => ' …',
+               :separator => ' ')
     elsif options[:extended]
       I18n.t(:title,
              :scope => [:answers, :show],
@@ -63,7 +67,13 @@ class Answer < Comment
   end
 
   def summary
-    truncate_words(body, 200)
+    truncate(markdown2txt(body).
+               slice((title(:truncated => true).size - 3)..-1).
+               to_s.
+               insert(0, '… '),
+             :length => SearchResult::SUMMARY_SIZE,
+             :omission => ' …',
+             :separator => ' ')
   end
 
   def topic_ids
@@ -176,8 +186,10 @@ class Answer < Comment
   end
 
   def unhide_news_update
+    if self.question.news_update && self.question.answers_count == 1
     # if this is the last question, reshow question's news_update
-    self.question.news_update.show! if self.question.answers_count == 1
+      self.question.news_update.show!
+    end
   end
 
   def new_answer_notification
@@ -242,7 +254,7 @@ class Answer < Comment
                                  routes.
                                  url_helpers.
                                  question_answer_url(question, id))
-    self.search_result = search_result
+    self.search_result_id = search_result.id
     if save && search_result.save
       true
     else

@@ -46,8 +46,11 @@ namespace :deploy do
 
     # Check whether asset bundles have changed
     if last_commit.nil? ||
-        Repo.diff(last_commit, master,
-                  "config/assets.yml", "public/javascripts",
+        Repo.diff(last_commit,
+                  master,
+                  "config/assets.yml",
+                  "app/stylesheets",
+                  "public/javascripts",
                   "public/stylesheets").size > 0
       puts "Compressed assets changed, update required."
       `compass compile`
@@ -68,6 +71,7 @@ namespace :deploy do
     puts "Config files."
     idx.add("config/shapado.yml", File.read("config/shapado.yml"))
     idx.add("config/database.yml", File.read("config/database.yml"))
+    idx.add("config/vanity.yml", File.read("config/vanity.yml"))
 
     # Fill base commit number
     idx.add("COMMIT", master.id)

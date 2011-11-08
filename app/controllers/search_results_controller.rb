@@ -1,17 +1,35 @@
 class SearchResultsController < ApplicationController
-  before_filter :login_required
+  before_filter :login_required, :only => [:create, :destroy, :flag]
+
+  def show
+    if params[:r].present?
+      track_bingo(:search_results_news_items)
+    end
+
+    @search_result = SearchResult.find_by_id(params[:search_result_id])
+    track_event(:clicked_search_result,
+                :search_result_id => @search_result.id,
+                :url => @search_result.url)
+    redirect_to(@search_result.url)
+  end
 
   def create
     @question = Question.find_by_id(params[:question_id])
     respond_to do |format|
       if (@search_result = SearchResult.new(params[:search_result])).save
-        if comment = Comment.create(:body => @search_result.comment,
-                                    :user => current_user,
-                                    :group => current_group,
-                                    :commentable => @search_result)
-          current_user.on_activity(:comment_question, current_group)
-          track_event(:commented, :commentable => @search_result.class.name)
+        if @search_result.comment.present?
+          if Comment.create(:body => @search_result.comment,
+                            :user => current_user,
+                            :group => current_group,
+                            :commentable => @search_result,
+                            :created_together_with_search_result => true)
+            current_user.on_activity(:comment_question, current_group)
+            track_event(:commented, :commentable => @search_result.class.name)
+          end
         end
+        track_event(:added_link,
+                    :latency => (@search_result.created_at - @question.created_at).to_i / 60)
+        track_bingo(:new_search_result)
         notice_message = t(:flash_notice, :scope => "search_results.create")
         format.html do
           flash[:notice] = notice_message
@@ -23,10 +41,11 @@ class SearchResultsController < ApplicationController
                      :form_message => notice_message,
                      :message => notice_message,
                      :html =>
-                       render_to_string(:partial => "questions/search_result",
+                       render_to_string(:partial => 'search_results/search_result',
                                         :object => @search_result,
-                                        :locals => { :question =>
-                                                       @question }) })
+                                        :locals =>
+                                          { :question => @question,
+                                            :hide_controls => false }) })
         end
         format.json { head(:created) }
       else
@@ -81,6 +100,7 @@ class SearchResultsController < ApplicationController
                      render_to_string(:partial => '/flags/form',
                                       :locals =>
                                         { :flag => @flag,
+                                          :type => :search_result,
                                           :source => params[:source],
                                           :form_id =>
                                             'search_result_flag_form' }) })

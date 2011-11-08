@@ -207,6 +207,8 @@ Shapado::Application.routes.draw do
       member do
         get :flag
       end
+
+      resources :comments
     end
 
     resources :answers do
@@ -316,6 +318,15 @@ Shapado::Application.routes.draw do
   end
 
   match '/content-search' => 'opensearch#index', :as => :opensearch
+
+  # Signup via invitation link.
+  scope :constraints => lambda { |request| request.params[:ref] } do
+    match '/' => 'url_invitations#show'
+  end
+
+  match '/vanity(/:action(/:id(.:format)))', :controller => :vanity, :as => :vanity
+
+  match '/g' => 'search_results#show'
 
   match '/:group_invitation' => 'users#new'
 
