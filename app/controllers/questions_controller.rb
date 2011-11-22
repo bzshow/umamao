@@ -149,10 +149,6 @@ class QuestionsController < ApplicationController
       return
     end
 
-    if params[:r].present?
-      track_bingo(:search_results_news_items)
-    end
-
     if params[:group_invitation]
       session[:group_invitation] = params[:group_invitation]
     end
@@ -191,7 +187,8 @@ class QuestionsController < ApplicationController
   def new
     if true
       if params[:question] && params[:question][:title].present?
-        redirect_to search_path(:q => params[:question][:title])
+        redirect_to search_path(:q => params[:question].delete(:title),
+                                :question => params[:question])
       else
         redirect_to root_path
       end
@@ -210,6 +207,11 @@ class QuestionsController < ApplicationController
 
   # GET /questions/1/edit
   def edit
+    @question = Question.find_by_slug_or_id(params[:id])
+    unless current_user.can_modify?(@question)
+      redirect_to @question
+      return
+    end
   end
 
   # POST /questions
