@@ -67,6 +67,8 @@ javascripts:
     - public/javascripts/modules/print.js
   mixpanel:
     - public/javascripts/modules/mixpanel.js
+  show_user:
+    - public/javascripts/modules/show_user.js
 
 stylesheets:
   base:

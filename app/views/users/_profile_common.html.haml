@@ -1,3 +1,6 @@
+- content_for :js do
+  = include_javascripts :show_user
+
 - content_for :subtabs do
   - @profile_owner = (current_user && current_user.id == @user.id)
 
@@ -30,11 +33,19 @@
 
     -if @profile_owner
       -if @user.description.blank?
-        .profile_inline_editable.markdown.empty_inline_editable_field{ "data-inline-object-key" => "",  "data-inline-name" => "description", "data-inline-edition-input" => "textarea", "data-inline-edition-markdown" => "markdown", "data-inline-edition-editable-content" => "" }
-          = t("users.inline_edition.empty_description")
+        .profile_inline_editable.markdown.empty_inline_editable_field{ :'data-inline-edition-editable-content' => '',
+                                                                       :'data-inline-edition-input' => :textarea,
+                                                                       :'data-inline-edition-markdown' => :markdown,
+                                                                       :'data-inline-name' => :description,
+                                                                       :'data-inline-object-key' => '' }
+          = t(:empty_description, :scope => [:users, :inline_edition])
 
       -else
-        .profile_inline_editable.markdown{ "data-inline-object-key" => "", "data-inline-name" => "description", "data-inline-edition-input" => "textarea", "data-inline-edition-editable-content" => @user.description, "data-inline-edition-markdown" => "markdown"}
+        .profile_inline_editable.markdown{ :'data-inline-edition-editable-content' => @user.description,
+                                           :'data-inline-edition-input' => :textarea,
+                                           :'data-inline-edition-markdown' => :markdown,
+                                           :'data-inline-name' => :description,
+                                           :'data-inline-object-key' => '' }
           = markdown(@user.description)
     -else
       = markdown(@user.description)
