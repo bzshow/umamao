@@ -1,0 +1,9 @@
+.facebook-signup.notified
+  %a.fb_button.fb_button_large{:href => "/auth/facebook"}
+    %span.fb_button_text= t('.sign_up_with_facebook')
+
+  .notified-message
+    = t :notified, :scope => 'users.new'
+
+  .field.agree
+    = t(:agree, :scope => 'users.new', :privacy => privacy_path, :tos => tos_path)

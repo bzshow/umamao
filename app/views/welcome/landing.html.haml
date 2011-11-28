@@ -38,10 +38,13 @@
   =t("welcome.landing.pitch")
 
 #signup
-  - if @user.blank?
-    %h3  #{ t('layouts.application.signup') }
-    %p#invitation_only=t("welcome.landing.invitation_only")
-    = image_tag("mamaopq.png", :id => "mamao_signup")
+  - if @notified_signup.present?
+    .notified-signup
+      %h3= t('.coming_soon')
+      %p= t('.sign_up_notified')
+      = image_tag("mamaopq.png", :id => "mamao_signup")
+  - elsif @user.blank?
+    = render :partial => 'users/notified_signup'
   - else
     - if should_track?
       - content_for :optimizely do

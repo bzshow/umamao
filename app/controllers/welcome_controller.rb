@@ -18,6 +18,8 @@ class WelcomeController < ApplicationController
   def landing
     session[:user_return_to] = params[:return_to]
 
+    @notified_signup = params[:notified_signup]
+
     @affiliation = Affiliation.new
     @signin_index, @signup_index = [1, 5]
     render 'landing', :layout => 'welcome'

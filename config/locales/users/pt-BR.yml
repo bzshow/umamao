@@ -101,6 +101,7 @@ pt-BR:
       already_registered: "Já tem conta no Umamão? <a href=\"/users/login\">Faça login</a> para entrar."
       invitation:
         title: "Você veio a convite de %{user}:"
+      notified: Você será notificado quando lançarmos
       submit: Criar conta
       title: Criar conta
     news_update:

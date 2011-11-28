@@ -62,7 +62,7 @@ class AuthCallbackController < ApplicationController
     email = user_info["email"]
     user = User.find_by_email(email)
 
-    if user
+    if user && user.active?
       if user.external_accounts.first(:provider => auth_hash['provider'])
         sign_in user
         redirect_to root_path
@@ -74,6 +74,7 @@ class AuthCallbackController < ApplicationController
       end
     else
       if session['sign_up_allowed']
+        session['sign_up_allowed'] = nil
         if session['invitation_type'] == 'Invitation'
           invitation_token = session['invitation_id']
           auth_hash['invitation_token'] = invitation_token
@@ -93,8 +94,12 @@ class AuthCallbackController < ApplicationController
           head(:unprocessable_entity)
         end
       else
-        flash[:error] = I18n.t("welcome.landing.invitation_only")
-        redirect_to root_path
+        auth_hash["active"] = false
+        if user = User.create_with_provider(auth_hash)
+          redirect_to root_path(:notified_signup => true)
+        else
+          head(:unprocessable_entity)
+        end
       end
     end
   end
@@ -102,6 +107,7 @@ class AuthCallbackController < ApplicationController
   def sign_in_and_associate_provider
     auth_hash = session['omniauth-hash']
     user = User.find_by_email(auth_hash["user_info"]["email"])
+
     if user.valid_password?(params[:user][:password])
       session.delete('omniauth-hash')
       sign_in user

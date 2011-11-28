@@ -220,7 +220,7 @@ class User
   # are allowed in, if not, they have to do something (like confirm
   # email) before being allowed to log in.
   def active?
-    true
+    !!active
   end
 
   def confirmed_affiliation?
@@ -1031,7 +1031,8 @@ Time.zone.now ? 1 : 0)
                        :name => user_info["name"],
                        :password => password,
                        :password_confirmation => password,
-                       :invitation_token => auth_hash["invitation_token"])
+                       :invitation_token => auth_hash["invitation_token"],
+                       :active => (auth_hash["active"] != false))
 
     if user
       UserExternalAccount.create(auth_hash.merge(:user => user))
